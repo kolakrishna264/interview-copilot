@@ -1,1 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Interview Copilot — ClinTrialAI</title>
+<style>
+:root{--bg:#050d1c;--card:#0a1628;--bd:#1e3a6e;--mt:#4a7fa8;--tx:#e2e8f0}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg);color:var(--tx);font-family:-apple-system,system-ui,sans-serif;min-height:100vh}
+#app{max-width:520px;margin:0 auto;padding:14px 14px 30px;display:flex;flex-direction:column;gap:12px}
+
+#hdr{background:#0d1b3e;border-radius:12px;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+#hdr h1{font-size:17px;font-weight:700;color:#fff;margin-bottom:2px}
+#hdr p{font-size:10px;color:#93c5fd}
+#pill{display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid #14532d;background:#071a0f;color:#4ade80;white-space:nowrap;flex-shrink:0;transition:all .3s}
+#pill.on{border-color:#7f1d1d;background:#1a0505;color:#fca5a5}
+#pill.think{border-color:#1e3a8a;background:#050d1f;color:#93c5fd}
+#pd{width:7px;height:7px;border-radius:50%;background:#4ade80}
+#pill.on #pd{background:#ef4444;animation:bl .5s infinite}
+#pill.think #pd{background:#60a5fa;animation:bl 1s infinite}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.2}}
+
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow:hidden}
+.clbl{padding:8px 14px;font-size:10px;color:var(--mt);font-weight:600;letter-spacing:.07em;text-transform:uppercase;border-bottom:1px solid var(--bd)}
+
+#live{padding:16px;display:flex;flex-direction:column;align-items:center;gap:12px}
+#orb{width:78px;height:78px;border-radius:50%;background:#060d1a;border:3px solid var(--bd);display:flex;align-items:center;justify-content:center;transition:all .3s;flex-shrink:0}
+#orb.on{border-color:#ef4444;box-shadow:0 0 0 0 rgba(239,68,68,.4);animation:op .8s infinite}
+#orb.think{border-color:#7c3aed;box-shadow:0 0 0 0 rgba(124,58,237,.4);animation:op 1.2s infinite}
+#orb.done{border-color:#16a34a}
+@keyframes op{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}50%{box-shadow:0 0 0 14px rgba(239,68,68,0)}}
+#orb svg{width:32px;height:32px;fill:#fff;opacity:.9}
+#omsg{font-size:13px;color:#60a5fa;font-weight:500;text-align:center;min-height:18px}
+
+#wave{display:flex;align-items:flex-end;gap:3px;height:36px}
+.wb{width:4px;border-radius:2px;background:var(--bd);min-height:3px;transition:height .06s,background .12s}
+
+#txbox{width:100%;background:#060d1a;border:1px solid var(--bd);border-radius:9px;padding:10px 12px;font-size:13px;color:var(--mt);font-style:italic;min-height:44px;line-height:1.6;word-break:break-word;transition:all .2s}
+#txbox.live{color:#93c5fd;font-style:normal;border-color:#2563eb}
+
+/* BIG ANSWER BOX */
+#ansbox{display:none;border:2px solid #16a34a;border-radius:14px;overflow:hidden}
+#anstop{background:#0a2612;padding:10px 16px;border-bottom:1px solid #14532d;display:flex;justify-content:space-between;align-items:center}
+#anstop b{font-size:13px;color:#4ade80;font-weight:700;letter-spacing:.02em}
+#ansts{font-size:10px;color:#166534}
+#ansbody{background:#071a0f;padding:18px 16px;font-size:16px;line-height:1.9;color:#dcfce7;min-height:70px;font-weight:400}
+#ansbtns{background:#071a0f;display:flex;gap:8px;padding:0 16px 14px}
+.ab{flex:1;padding:11px;border-radius:9px;background:#0a2612;border:1px solid #14532d;color:#4ade80;font-size:13px;font-weight:700;cursor:pointer}
+
+#slgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--bd)}
+.sl{padding:8px 2px;background:var(--card);font-size:9px;color:var(--mt);border:none;cursor:pointer;text-align:center;transition:all .1s;line-height:1.3}
+.sl.on{background:#0f2040;color:#60a5fa;font-weight:700}
+
+#histlist{max-height:160px;overflow-y:auto}
+.hi{padding:10px 14px;border-bottom:1px solid #0d1a2e;cursor:pointer}
+.hi:last-child{border-bottom:none}
+.hiq{font-size:12px;color:#60a5fa;font-weight:600;margin-bottom:2px}
+.hia{font-size:11px;color:var(--mt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+#startbtn{width:100%;padding:17px;border-radius:14px;border:none;font-size:17px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;background:#1d4ed8;color:#fff;transition:all .2s}
+#startbtn.stop{background:#7f1d1d;color:#fca5a5}
+#startbtn svg{width:20px;height:20px;fill:currentColor}
+#mutebtn{width:100%;padding:15px;border-radius:12px;border:2px solid var(--bd);background:var(--card);color:#60a5fa;font-size:15px;font-weight:700;cursor:pointer;display:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:all .15s;touch-action:none}
+#mutebtn.held{background:#1c1000;border-color:#78350f;color:#fbbf24}
+#tip{font-size:11px;color:#1e3560;text-align:center;line-height:1.7}
+#errbox{display:none;background:#1a0800;border:1px solid #78350f;border-radius:10px;padding:14px;font-size:13px;color:#fbbf24;line-height:1.8;text-align:center}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="hdr">
+    <div>
+      <h1>Interview Copilot</h1>
+      <p>Real-time · Prints answer instantly · No touching needed</p>
+    </div>
+    <div id="pill"><div id="pd"></div><span id="ptxt">Off</span></div>
+  </div>
+
+  <div id="errbox"></div>
+
+  <div class="card">
+    <div id="live">
+      <div id="orb">
+        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+      </div>
+      <div id="omsg">Tap Start</div>
+      <div id="wave">
+        <div class="wb" id="w0"></div><div class="wb" id="w1"></div><div class="wb" id="w2"></div>
+        <div class="wb" id="w3"></div><div class="wb" id="w4"></div><div class="wb" id="w5"></div>
+        <div class="wb" id="w6"></div><div class="wb" id="w7"></div><div class="wb" id="w8"></div>
+        <div class="wb" id="w9"></div><div class="wb" id="w10"></div><div class="wb" id="w11"></div>
+      </div>
+      <div id="txbox">Press Start — hold MY TURN while you speak, release for interviewer</div>
+    </div>
+  </div>
+
+  <div id="ansbox">
+    <div id="anstop"><b>READ THIS OUT LOUD</b><span id="ansts"></span></div>
+    <div id="ansbody"></div>
+    <div id="ansbtns">
+      <button class="ab" onclick="nextQ()">Next question</button>
+      <button class="ab" id="cpbtn" onclick="copyAns()">Copy</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="clbl">Tap your current slide</div>
+    <div id="slgrid">
+      <button class="sl on" data-s="any" onclick="setSl(this)">Any</button>
+      <button class="sl" data-s="1" onclick="setSl(this)">1 Intro</button>
+      <button class="sl" data-s="2" onclick="setSl(this)">2 Problem</button>
+      <button class="sl" data-s="3" onclick="setSl(this)">3 KPIs</button>
+      <button class="sl" data-s="4" onclick="setSl(this)">4 Data</button>
+      <button class="sl" data-s="5" onclick="setSl(this)">5 Models</button>
+      <button class="sl" data-s="6" onclick="setSl(this)">6 Arch</button>
+      <button class="sl" data-s="7" onclick="setSl(this)">7 Results</button>
+      <button class="sl" data-s="8" onclick="setSl(this)">8 Explain</button>
+      <button class="sl" data-s="9" onclick="setSl(this)">9 RAG</button>
+      <button class="sl" data-s="10" onclick="setSl(this)">10 MLOps</button>
+      <button class="sl" data-s="11" onclick="setSl(this)">11 Impact</button>
+      <button class="sl" data-s="12" onclick="setSl(this)">12 Road</button>
+    </div>
+  </div>
+
+  <div class="card" id="histcard" style="display:none">
+    <div class="clbl">Previous answers — tap to view</div>
+    <div id="histlist"></div>
+  </div>
+
+  <button id="startbtn" onclick="toggleSess()">
+    <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5-3c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+    <span id="slbl">Start Session</span>
+  </button>
+
+  <button id="mutebtn"
+    ontouchstart="mOn(event)" ontouchend="mOff(event)"
+    onmousedown="mOn(event)" onmouseup="mOff(event)" onmouseleave="mOff(event)">
+    Hold: MY TURN — press while YOU speak
+  </button>
+
+  <div id="tip">Hold MY TURN the entire time you are presenting.<br>Release when the interviewer asks a question.<br>Answer prints on screen in 1–2 seconds automatically.</div>
+</div>
+<script>
+var on=false,muting=false,busy=false,slide="any";
+var recog=null,acc="",silT=null,lastAns="",qaHist=[];
+var aCtx=null,anlsr=null,vData=null,vAF=null,mStr=null;
+var bars=Array.from({length:12},function(_,i){return document.getElementById("w"+i)});
+
+function setSl(b){document.querySelectorAll(".sl").forEach(function(x){x.classList.remove("on")});b.classList.add("on");slide=b.dataset.s}
+function pill(s){document.getElementById("pill").className=s;document.getElementById("ptxt").textContent=s==="on"?"Listening":s==="think"?"Thinking":"Off"}
+function orb(s,m){document.getElementById("orb").className=s;document.getElementById("omsg").textContent=m}
+function tx(t,live){var e=document.getElementById("txbox");e.textContent=t;e.className=live?"live":""}
+function showErr(h){var e=document.getElementById("errbox");if(h){e.innerHTML=h;e.style.display="block"}else e.style.display="none"}
+
+function mOn(e){e.preventDefault();muting=true;document.getElementById("mutebtn").classList.add("held");if(recog){try{recog.stop()}catch(x){}}acc="";orb("","Muted — your turn");tx("Muted while you present...",false)}
+function mOff(e){e.preventDefault();muting=false;document.getElementById("mutebtn").classList.remove("held");acc="";if(on&&!busy){orb("on","Listening...");tx("Waiting for question...",false);pill("on");setTimeout(go,300)}}
+
+function toggleSess(){if(!on)startSess();else stopSess()}
+
+function startSess(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){showErr("Chrome is required. Please open this in Chrome browser.");return}
+  showErr("");
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){
+    mStr=s;setupViz(s);
+    on=true;pill("on");
+    document.getElementById("startbtn").classList.add("stop");
+    document.getElementById("slbl").textContent="Stop Session";
+    document.getElementById("mutebtn").style.display="block";
+    orb("on","Listening for interviewer...");
+    tx("Hold MY TURN while you speak — release when interviewer asks",false);
+    go();
+  }).catch(function(){
+    var ios=/iPad|iPhone|iPod/.test(navigator.userAgent);
+    if(ios)showErr("iPhone: Go to Settings > Chrome > Microphone > turn ON. Then come back and tap Start again.");
+    else showErr("Microphone blocked.<br>Click the lock icon in Chrome's address bar > Microphone > Allow. Refresh and try again.");
+  });
+}
+
+function stopSess(){
+  on=false;busy=false;muting=false;
+  if(recog){try{recog.abort()}catch(e){}recog=null}
+  if(mStr){mStr.getTracks().forEach(function(t){t.stop()});mStr=null}
+  if(vAF){cancelAnimationFrame(vAF);vAF=null}
+  if(silT){clearTimeout(silT);silT=null}
+  resetBars();pill("");
+  document.getElementById("startbtn").classList.remove("stop");
+  document.getElementById("slbl").textContent="Start Session";
+  document.getElementById("mutebtn").style.display="none";
+  document.getElementById("mutebtn").classList.remove("held");
+  orb("","Tap Start");tx("Press Start — hold MY TURN while YOU speak",false);
+}
+
+function go(){
+  if(!on||muting||busy)return;
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR)return;
+  recog=new SR();recog.continuous=true;recog.interimResults=true;recog.lang="en-US";acc="";
+
+  recog.onresult=function(ev){
+    if(!on||muting||busy)return;
+    var tmp="";
+    for(var i=ev.resultIndex;i<ev.results.length;i++){
+      var t=ev.results[i][0].transcript;
+      if(ev.results[i].isFinal)acc+=" "+t;else tmp+=t;
+    }
+    var show=(acc+" "+tmp).trim();
+    if(show.length>3){
+      orb("on","Capturing question...");
+      tx('"'+show.slice(-150)+'"',true);
+      if(silT)clearTimeout(silT);
+      silT=setTimeout(function(){
+        var q=acc.trim();
+        if(q.split(" ").length>=4&&on&&!muting&&!busy){
+          if(recog){try{recog.stop()}catch(x){}}
+          getAns(q);
+        }
+      },1500);
+    }
+  };
+  recog.onend=function(){if(on&&!muting&&!busy)setTimeout(go,200)};
+  recog.onerror=function(ev){
+    if(ev.error==="no-speech"||ev.error==="aborted")return;
+    if(ev.error==="not-allowed"){showErr("Microphone blocked. Allow microphone access and try again.");stopSess();return}
+    if(on&&!muting&&!busy)setTimeout(go,500);
+  };
+  try{recog.start()}catch(e){setTimeout(go,400)}
+}
+
+function getAns(q){
+  if(busy)return;
+  busy=true;pill("think");orb("think","Getting your answer...");
+  tx('"'+q.slice(0,150)+'"',false);
+  document.getElementById("ansbox").style.display="none";
+
+  fetch("/answer",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      question:q,
+      slide:slide,
+      history:qaHist.slice(-3)
+    })
+  })
+  .then(function(r){return r.json()})
+  .then(function(d){
+    if(d.answer){
+      lastAns=d.answer;
+      qaHist.unshift({q:q.slice(0,80),a:d.answer});
+      if(qaHist.length>6)qaHist.pop();
+      printAns(d.answer,q);
+    }else{
+      showErr(d.error||"No answer received. Try again.");
+      resume();
+    }
+  })
+  .catch(function(){showErr("Connection error. Make sure server is running.");resume()});
+}
+
+function printAns(a,q){
+  document.getElementById("ansbody").textContent=a;
+  var n=new Date();document.getElementById("ansts").textContent=n.getHours()+":"+String(n.getMinutes()).padStart(2,"0");
+  document.getElementById("ansbox").style.display="block";
+  orb("done","Answer ready — read it!");pill("on");
+  document.getElementById("ansbox").scrollIntoView({behavior:"smooth",block:"nearest"});
+  addHist(q,a);
+}
+
+function nextQ(){document.getElementById("ansbox").style.display="none";resume()}
+function copyAns(){if(!lastAns)return;navigator.clipboard.writeText(lastAns).catch(function(){});var b=document.getElementById("cpbtn");b.textContent="Copied!";setTimeout(function(){b.textContent="Copy"},1500)}
+
+function resume(){busy=false;acc="";if(on&&!muting){pill("on");orb("on","Listening for next question...");tx("Waiting for next question...",false);setTimeout(go,300)}}
+
+function addHist(q,a){
+  document.getElementById("histcard").style.display="block";
+  var l=document.getElementById("histlist"),d=document.createElement("div");d.className="hi";
+  d.innerHTML="<div class='hiq'>"+q.slice(0,80)+(q.length>80?"...":"")+"</div><div class='hia'>"+a.slice(0,100)+"...</div>";
+  d.onclick=(function(aa){return function(){printAns(aa,"")}})(a);
+  l.insertBefore(d,l.firstChild);if(l.children.length>5)l.removeChild(l.lastChild);
+}
+
+function setupViz(s){
+  try{aCtx=new(window.AudioContext||window.webkitAudioContext)();anlsr=aCtx.createAnalyser();anlsr.fftSize=64;aCtx.createMediaStreamSource(s).connect(anlsr);vData=new Uint8Array(anlsr.frequencyBinCount);drawV()}catch(e){}
+}
+function drawV(){
+  if(!anlsr){vAF=requestAnimationFrame(drawV);return}
+  anlsr.getByteFrequencyData(vData);
+  bars.forEach(function(b,i){if(!b)return;var v=vData[Math.floor(i*vData.length/bars.length)]||0;var h=muting?3:Math.max(3,Math.min(34,v*34/200));b.style.height=h+"px";b.style.background=muting?"#1e3a6e":v>90?"#ef4444":v>30?"#f59e0b":"#2563eb"});
+  vAF=requestAnimationFrame(drawV);
+}
+function resetBars(){bars.forEach(function(b){if(b){b.style.height="3px";b.style.background="#1e3a6e"}})}
+</script>
+</body>
+</html>
 
