@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const fetch = require('node-fetch');
 const path = require('path');
 
 const app = express();
@@ -8,51 +7,56 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Health check
-app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/health', (req, res) => {
+  res.json({ 
+    ok: true, 
+    hasKey: !!process.env.ANTHROPIC_API_KEY,
+    keyStart: process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.slice(0,12) + '...' : 'MISSING'
+  });
+});
 
-// Proxy endpoint — receives question from browser, calls Anthropic, returns answer
 app.post('/answer', async (req, res) => {
   const { question, slide, history } = req.body;
+  
+  console.log('=== NEW QUESTION ===');
+  console.log('Question:', question);
+  console.log('API Key exists:', !!process.env.ANTHROPIC_API_KEY);
+  
   if (!question) return res.status(400).json({ error: 'No question provided' });
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not set on server' });
 
-  const SYSTEM = `You are a real-time interview copilot for Mohan Krishna K presenting ClinTrialAI at Medidata for Data Scientist R&D. Print the answer clearly on screen so he can read it out loud.
+  const SYSTEM = `You are a real-time interview copilot for Mohan Krishna K presenting ClinTrialAI at Medidata for Data Scientist R&D. Give him a clear answer to read on screen.
 
 PROJECT: ClinTrialAI predicts patient dropout risk in Phase 2/3 clinical trials.
-- XGBoost on CDISC SDTM structured data: PR-AUC 0.84, ROC-AUC 0.88, Recall 0.83
-- BioBERT fine-tuned on clinical notes: F1 0.74, 3-class risk classification  
-- LLaMA-3 RAG with FAISS vector store: retrieval under 50ms
-- Ensemble: 0.55 x XGBoost + 0.30 x BioBERT + 0.15 x RAG flag
-- Results: PR-AUC improved 35% from 0.62 to 0.84, dropout reduced 28% to 21%, saves $15-25M per trial, 4 months faster completion, 14x faster risk detection
-- Stack: FastAPI, Docker, AWS EC2, MLflow, Airflow, Evidently AI, SHAP, LIME, GitHub Actions, Feast feature store, Redis
-- Data: 50,000 patients across 120 trials, CDISC SDTM format, HIPAA compliant, 21 CFR Part 11
-- Mohan's experience: Best Buy (RAG/LLMs/MLOps), LabCorp (BioBERT/clinical NLP), TD Bank (XGBoost/SHAP)
-- MS Applied Statistics and Data Science, UT Arlington, December 2024
+XGBoost on CDISC SDTM: PR-AUC 0.84, ROC-AUC 0.88, Recall 0.83.
+BioBERT on clinical notes: F1 0.74.
+LLaMA-3 RAG with FAISS under 50ms.
+Ensemble: 0.55 x XGBoost + 0.30 x BioBERT + 0.15 x RAG.
+Results: PR-AUC 0.62 to 0.84 (+35%), dropout 28% to 21%, saves $15-25M per trial, 4 months faster, 14x faster.
+Stack: FastAPI Docker AWS MLflow Airflow Evidently SHAP LIME GitHub Actions Feast Redis.
+Data: 50000 patients, 120 trials, CDISC SDTM, HIPAA, 21 CFR Part 11.
+Mohan: Best Buy RAG/LLMs, LabCorp BioBERT, TD Bank XGBoost SHAP. MS Applied Stats UT Arlington 2024.
 
-ANSWER RULES:
-- Write in first person as Mohan
-- Maximum 5 sentences
-- Simple clear English — easy to read fast on a phone screen
-- No bullet points, no markdown formatting
-- Do not start with "Great question"
-- Answer directly and confidently
-- End with one sentence connecting to Medidata or the role`;
+RULES: First person as Mohan. Max 5 sentences. Simple English. No bullets. No "Great question". Direct answer. End with Medidata connection.`;
 
-  const ctx = slide && slide !== 'any' ? `Context: Mohan is on slide ${slide} of his presentation. ` : '';
-  
+  const ctx = slide && slide !== 'any' ? `Slide ${slide}. ` : '';
   const messages = [];
+
   if (history && history.length > 0) {
-    history.slice(-3).forEach(h => {
+    history.slice(-2).forEach(h => {
       messages.push({ role: 'user', content: `"${h.q}"` });
       messages.push({ role: 'assistant', content: h.a });
     });
   }
+
   messages.push({
     role: 'user',
-    content: `${ctx}The interviewer just asked: "${question}"\n\nPrint the answer clearly. Max 5 sentences. Simple English.`
+    content: `${ctx}Interviewer asked: "${question}"\n\nAnswer clearly. Max 5 sentences.`
   });
 
   try {
+    console.log('Calling Anthropic API...');
+    
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -61,26 +65,39 @@ ANSWER RULES:
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 250,
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
         system: SYSTEM,
         messages: messages
       })
     });
 
-    const data = await response.json();
+    console.log('API response status:', response.status);
+    const text = await response.text();
+    console.log('API raw response:', text.slice(0, 500));
+
+    let data;
+    try { data = JSON.parse(text); }
+    catch(e) { return res.status(500).json({ error: 'Invalid JSON from API', raw: text.slice(0, 200) }); }
 
     if (data.content && data.content[0] && data.content[0].text) {
+      console.log('SUCCESS - Answer:', data.content[0].text.slice(0, 100));
       res.json({ answer: data.content[0].text.trim() });
+    } else if (data.error) {
+      console.error('Anthropic error:', JSON.stringify(data.error));
+      res.status(500).json({ error: 'API error: ' + data.error.message, type: data.error.type });
     } else {
-      console.error('API error:', JSON.stringify(data));
-      res.status(500).json({ error: 'No answer from AI', details: data.error?.message });
+      console.error('Unexpected response:', JSON.stringify(data));
+      res.status(500).json({ error: 'Unexpected API response', raw: JSON.stringify(data).slice(0, 200) });
     }
   } catch (err) {
-    console.error('Fetch error:', err);
-    res.status(500).json({ error: 'Server error: ' + err.message });
+    console.error('Fetch error:', err.message);
+    res.status(500).json({ error: 'Server fetch error: ' + err.message });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Copilot server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`API Key configured: ${!!process.env.ANTHROPIC_API_KEY}`);
+});
