@@ -2,8 +2,9 @@ services:
   - type: web
     name: interview-copilot
     env: node
+    plan: free
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: node server.js
     envVars:
-      - key: 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
+      - key: ANTHROPIC_API_KEY
         sync: false
